@@ -1,4 +1,3 @@
-fastapi
-uvicorn
-Pillow
-python-multipart 
+# D:\kodingan\bot\requirements.txt
+python-telegram-bot
+requests
