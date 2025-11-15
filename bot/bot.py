@@ -35,34 +35,40 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Cukup kirimkan pesan teks. Saya akan mengirimkannya ke backend AI untuk diubah menjadi gambar tulisan tangan."
     )
 
+# bot/bot.py (Modifikasi Fungsi handle_text)
+
+# ...
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Menerima teks, mengirim ke API, dan mengembalikan gambar."""
     user_text = update.message.text
-    
-    # Beri notifikasi ke user bahwa proses dimulai
     await update.message.reply_text("Memproses teks... Mohon tunggu sebentar.")
 
     try:
-        # 1. KIRIM TEKS KE API FASTAPI LOKAL
-        # FastAPI endpoint POST /generate mengharapkan data formulir atau JSON. 
-        # Karena endpoint kita menerima 'text: str', kita bisa mengirimkannya sebagai JSON.
-        
-        # --- MISSING LINE GOES HERE ---
-        user_text = update.message.text
-        data_to_send = {"text": user_text} # <-- ADD THIS LINE
+        data_to_send = {"text": user_text}
+        response = requests.post(API_URL, data=data_to_send)
+        response.raise_for_status() 
 
-        response = requests.post(API_URL, data=data_to_send) 
-        response.raise_for_status() # Cek jika ada HTTP error (4xx atau 5xx)
+        # --- MODIFIKASI KRITIS DI SINI: Baca Header Kustom ---
+        # Cek header 'X-Multi-Page-Status'
+        is_multi_page = response.headers.get("X-Multi-Page-Status", "False") == "True"
 
-        # 2. API mengembalikan file gambar, kita membacanya
+        # 1. Ambil data gambar
         image_data = response.content
-    
+        
+        # 2. Kirim gambar
         await update.message.reply_photo(
             photo=io.BytesIO(image_data),
-            caption="Ini tulisan tangan Anda!"
+            caption="Ini tulisan tangan Anda (Halaman 1)!"
         )
 
+        # 3. KIRIM PESAN PERINGATAN (JIKA DIPERLUKAN)
+        if is_multi_page:
+            await update.message.reply_text(
+                "⚠️ **PERINGATAN:** Teks Anda terlalu panjang dan hanya Halaman 1 yang dikirimkan. "
+                "Sisa teks telah terpotong. Mohon kirim teks yang lebih pendek."
+            )
+
     except requests.exceptions.RequestException as e:
+        # ... (penanganan error tetap sama)
         logger.error(f"Error saat menghubungi API: {e}")
         await update.message.reply_text(
             "Maaf, terjadi kesalahan saat menghubungi server rendering. "

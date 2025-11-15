@@ -24,18 +24,10 @@ def read_root():
 
 
 @app.post("/generate")
-# Menerima teks sebagai Data Formulir (Form Data)
 def generate_handwriting_image(text: str = Form(...)):
-    """
-    Endpoint yang menerima teks dan mengembalikan gambar tulisan tangan.
-    Menggunakan Response dari memori untuk menghindari FileNotFoundError pada temporary directory.
-    """
-    
     base_filename = "tulisan_tangan"
     
-    # Buat direktori sementara
     with tempfile.TemporaryDirectory() as tmpdir:
-        
         temp_output_base_path = os.path.join(tmpdir, base_filename)
         
         try:
@@ -50,45 +42,29 @@ def generate_handwriting_image(text: str = Form(...)):
             output_files.sort()
             
             if not output_files:
-                 raise Exception("Renderer sukses, tetapi tidak ada file output PNG yang ditemukan.")
+                 raise Exception("Renderer gagal membuat file output.")
 
-            # KASUS A: SATU HALAMAN (ATAU Halaman Pertama)
-            if len(output_files) >= 1:
-                final_file_path = output_files[0]
-                
-                # --- PERBAIKAN KRITIS: Baca file ke memori sebelum with berakhir ---
-                with open(final_file_path, "rb") as f:
-                    file_content = f.read()
-
-                # Kembalikan Respons dari memori (bytes)
-                return Response(
-                    content=file_content, 
-                    media_type="image/png", 
-                    headers={
-                        "Content-Disposition": f"attachment; filename={base_filename}.png"
-                    }
-                )
+            # --- MODIFIKASI KRITIS UNTUK STABILITAS (Hanya Ambil Halaman 1) ---
+            final_file_path = output_files[0] # Selalu ambil file pertama (Halaman 1)
             
-            # KASUS B: MULTI-PAGE (Mengembalikan ZIP)
-            # Logika ini tidak akan tercapai jika hanya ada 1 halaman, tapi tetap penting.
-            else: 
-                zip_name = f"{base_filename}_multi"
-                
-                shutil.make_archive(
-                    base_name=os.path.join(tmpdir, zip_name),
-                    format='zip',
-                    root_dir=tmpdir,
-                    base_dir='.' 
-                )
-                
-                zip_path = os.path.join(tmpdir, f"{zip_name}.zip")
+            # Cek apakah ada halaman tambahan yang terpotong (untuk pesan peringatan di Bot)
+            has_extra_pages = len(output_files) > 1
+            
+            # 3. Baca file ke memori
+            with open(final_file_path, "rb") as f:
+                file_content = f.read()
 
-                # Kembalikan file ZIP
-                return FileResponse(
-                    path=zip_path,
-                    media_type="application/zip",
-                    filename=f"{zip_name}.zip"
-                )
+            # 4. Kembalikan Respons dari memori (bytes)
+            # Kunci: Menggunakan header kustom untuk memberi tahu Bot status Multi-page
+            return Response(
+                content=file_content, 
+                media_type="image/png", 
+                headers={
+                    "Content-Disposition": f"attachment; filename={base_filename}.png",
+                    # Tambahkan header kustom untuk memberi tahu Bot
+                    "X-Multi-Page-Status": "True" if has_extra_pages else "False"
+                }
+            )
 
         except Exception as e:
             print(f"Rendering Error: {e}")
