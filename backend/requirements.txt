@@ -1,4 +1,6 @@
+# D:\kodingan\backend\requirements.txt
 fastapi
 uvicorn
 Pillow
-python-multipart 
+python-multipart
+gunicorn # <--- TAMBAH INI
